@@ -14,7 +14,7 @@
 
 This project automates the daily task of manually searching, reading, and summarising 
 news articles along specific industries as required news from India. What previously took **45–60 minutes of manual 
-work every morning** now happens **automatically at 8:00 AM** — delivering a professionally 
+work every morning** now happens **automatically every morning** — delivering a professionally 
 formatted intelligence digest directly to my inbox with zero human intervention. It can also be triggered manually whenever required.
 
 The system pulls news from **live sources**, filters for relevant content, uses 
