@@ -1,0 +1,582 @@
+{
+  "name": "Life Insurance Industry Update",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -640,
+        80
+      ],
+      "id": "3748d7d9-a623-4e95-b53a-5590793d7717",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -640,
+        368
+      ],
+      "id": "4dd2a392-e03c-4e35-b3ea-4a1a67a679c8",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -400,
+        224
+      ],
+      "id": "710047a0-7c88-4017-88d6-fc0c15d81fdd",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nlet articles = [];\n\nfor (const item of items) {\n  \n  // Handle NewsAPI response\n  if (item.json.articles) {\n    for (const a of item.json.articles) {\n      articles.push({\n        title: a.title || '',\n        url: a.url || '',\n        source: a.source?.name || 'NewsAPI',\n        publishedAt: a.publishedAt || '',\n        content: a.content || a.description || ''\n      });\n    }\n  }\n\n  // Handle RSS Read response (Google News)\n  if (item.json.title && item.json.link) {\n    articles.push({\n      title: item.json.title || '',\n      url: item.json.link || '',\n      source: 'Google News',\n      publishedAt: item.json.pubDate || '',\n      content: item.json.content || item.json.contentSnippet || item.json.summary || ''\n    });\n  }\n}\n\n// Deduplicate by title\nconst seen = new Set();\nconst unique = articles.filter(a => {\n  const key = a.title.toLowerCase().trim();\n  if (seen.has(key)) return false;\n  seen.add(key);\n  return true;\n});\n\n// Filter for India-relevant articles only\nconst indiaKeywords = [\n  'india', 'indian', 'irdai', 'lic', 'mumbai', 'delhi',\n  'rupee', 'crore', 'lakh', 'hdfc life', 'icici prudential',\n  'sbi life', 'max life', 'bajaj allianz', 'kotak life',\n  'tata aia', 'aditya birla', 'pnb metlife', 'reliance life',\n  'icici life', 'birla sunlife', 'star union', 'exide life',\n  'future generali', 'canara hsbc', 'pramerica', 'aegon life'\n];\n\nconst indiaFiltered = unique.filter(a => {\n  const text = (a.title + ' ' + a.content).toLowerCase();\n  return indiaKeywords.some(keyword => text.includes(keyword));\n});\n\n// Filter last 7 days\nconst now = new Date();\nconst sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);\n\nconst monthFiltered = indiaFiltered.filter(a => {\n  if (!a.publishedAt) return false;\n  const articleDate = new Date(a.publishedAt);\n  return articleDate >= sevenDaysAgo;\n});\n\n// Sort by date — newest first\nmonthFiltered.sort((a, b) => {\n  const dateA = new Date(a.publishedAt || 0);\n  const dateB = new Date(b.publishedAt || 0);\n  return dateB - dateA;\n});\n\n// Limit to 15 most recent articles\nconst limited = monthFiltered.slice(0, 15);\nreturn limited.map(a => ({ \n  json: {\n    title: a.title,\n    url: a.url,\n    source: a.source,\n    publishedAt: a.publishedAt,\n    content: a.content\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        496,
+        160
+      ],
+      "id": "40599ef9-6db9-46b5-86ac-0102793c9d1d",
+      "name": "Code in JavaScript",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a professional insurance industry analyst in India. Summarise the following news article in exactly 5 clear numbered points. Do not miss any key information. Each point must be one concise sentence. Return only the 5 numbered points, nothing else. No introduction, no conclusion.\n\nTitle: {{ $json.title }}\n\nContent: {{ $json.content }}",
+        "batching": {
+          "batchSize": 1
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        656,
+        160
+      ],
+      "id": "14a42daa-6bff-4f1e-835a-ef05462ba36c",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        656,
+        368
+      ],
+      "id": "ce777f40-5742-42f5-8484-1b38108b090a",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "aVs3p97X9TJcdeuF",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst rawItems = items.map(i => ({\n  title: i.json.title || '',\n  url: i.json.url || '',\n  source: i.json.source || '',\n  publishedAt: i.json.publishedAt || '',\n  text: i.json.text || ''\n}));\n\nconst DIGEST_TITLE = \"Life Insurance Industry — India News Digest\";\nconst ACCENT_COLOR = \"#1a3c5e\";\nconst SHOW_SOURCE = true;\nconst SHOW_DATE = true;\n\nconst today = new Date().toLocaleDateString('en-IN', {\n  weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'\n});\n\nlet htmlContent = `<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"UTF-8\">\n<style>\n  body { font-family: Calibri, Arial, sans-serif; max-width: 820px; margin: 0 auto; padding: 30px; color: #222; }\n  h1 { color: #1a3c5e; font-size: 22pt; border-bottom: 3px solid #1a3c5e; padding-bottom: 12px; margin-bottom: 6px; }\n  .date { color: #888; font-size: 11pt; margin-top: 0; margin-bottom: 30px; }\n  .article { margin-bottom: 40px; padding: 24px; border-left: 4px solid #1a3c5e; background: #f8f9fb; }\n  .article-title { color: #1a3c5e; font-size: 14pt; font-weight: bold; margin: 0 0 6px 0; line-height: 1.4; }\n  .meta { color: #999; font-size: 10pt; margin: 0 0 16px 0; }\n  ol { margin: 0 0 16px 0; padding-left: 20px; font-size: 12pt; }\n  ol li { margin-bottom: 8px; line-height: 1.6; color: #333; }\n  .article-link { margin: 12px 0 0 0; padding-top: 10px; border-top: 1px solid #e0e4ea; font-size: 11pt; }\n  .article-link a { color: #1a3c5e; text-decoration: underline; word-break: break-all; }\n  .footer { color: #bbb; font-size: 9pt; text-align: center; margin-top: 40px; border-top: 1px solid #eee; padding-top: 16px; }\n</style>\n</head>\n<body>\n<h1>${DIGEST_TITLE}</h1>\n<p class=\"date\">${today}</p>\n`;\n\nfor (let index = 0; index < rawItems.length; index++) {\n  const article = rawItems[index] || {};\n  \n  const title = (article.title || article.json?.title || 'No Title').toString();\n  const url = (article.url || article.json?.url || '').toString();\n  const source = (article.source || article.json?.source || '').toString();\n  const summaryText = (article.text || article.json?.text || '').toString();\n  \n  const rawDate = article.publishedAt || article.json?.publishedAt || '';\n  const publishedAt = rawDate ? new Date(rawDate).toLocaleDateString('en-IN') : '';\n\n  const metaLine = [\n    SHOW_SOURCE && source ? source : null,\n    SHOW_DATE && publishedAt ? publishedAt : null\n  ].filter(Boolean).join(' | ');\n\n  const lines = summaryText.split('\\n');\n  const pointLines = lines.filter(line => {\n    if (!line || typeof line !== 'string') return false;\n    return line.trim().match(/^\\d+[\\.\\)]/);\n  });\n\n  const pointsHtml = pointLines.length > 0\n    ? pointLines.map(line => {\n        const clean = line.replace(/^\\d+[\\.\\)]\\s*/, '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');\n        return `<li>${clean}</li>`;\n      }).join('')\n    : `<li>${summaryText.replace(/&/g,'&amp;')}</li>`;\n\n  htmlContent += `\n  <div class=\"article\">\n    <p class=\"article-title\">${index + 1}. ${title.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>\n    ${metaLine ? `<p class=\"meta\">${metaLine}</p>` : ''}\n    <ol>${pointsHtml}</ol>\n    <p class=\"article-link\">\n      <a href=\"${url}\">Read full article</a>\n    </p>\n  </div>`;\n}\n\nhtmlContent += `\n<p class=\"footer\">Auto-generated — Life Insurance News Digest</p>\n</body>\n</html>`;\n\nconst fileName = `Life_Insurance_Digest_${new Date().toISOString().slice(0,10)}.doc`;\nconst base64Content = Buffer.from(htmlContent, 'utf8').toString('base64');\n\nreturn [{\n  json: {\n    htmlBody: htmlContent,\n    today,\n    articleCount: rawItems.length,\n    fileName\n  },\n  binary: {\n    attachment: {\n      data: base64Content,\n      mimeType: 'application/msword',\n      fileName: fileName,\n      fileExtension: 'doc'\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1216,
+        160
+      ],
+      "id": "a0527cc2-0496-4bca-8282-e8a0dd2ee6ec",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "sendTo": "lucid.agent2000@gmail.com",
+        "subject": "=Life Insurance News Digest — {{ $now.format('DD MMM YYYY') }} ({{ $json.articleCount }} articles)",
+        "message": "={{ $json.htmlBody }}",
+        "options": {
+          "attachmentsUi": {
+            "attachmentsBinary": [
+              {
+                "property": "=attachment"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1440,
+        160
+      ],
+      "id": "a4213571-dd70-4cd6-b683-72de2ee57843",
+      "name": "Send a message",
+      "webhookId": "c3bf7264-b15b-4388-8bc3-bb3e14c6e39e",
+      "executeOnce": true,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "TnLt3gFNb6LKpN8B",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://economictimes.indiatimes.com/industry/banking/insurance/rssfeeds/13358575.cms",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        16,
+        16
+      ],
+      "id": "7f89f6f2-5569-4dd0-a61d-5fd8f4892d1b",
+      "name": "RSS - Economic Times",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "url": "https://www.livemint.com/rss/insurance",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        16,
+        160
+      ],
+      "id": "a5165064-a528-480b-9b95-736f3d4d4062",
+      "name": "RSS Mint Insurance"
+    },
+    {
+      "parameters": {
+        "url": "https://newsapi.org/v2/everything",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "\"ICICI Prudential\" OR \"SBI Life\" OR \"HDFC Life\" insurance India"
+            },
+            {
+              "name": "sortBy",
+              "value": "publishedAt"
+            },
+            {
+              "name": "language",
+              "value": "en"
+            },
+            {
+              "name": "pageSize",
+              "value": "10"
+            },
+            {
+              "name": "apiKey",
+              "value": "2ab0a02f056a44fabf733648386aaa17"
+            },
+            {
+              "name": "domains",
+              "value": "economictimes.indiatimes.com,timesofindia.com,news18.com,livemint.com,business-standard.com"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        16,
+        432
+      ],
+      "id": "5ff06d6f-fd50-4cde-8d6c-f463f7629ee5",
+      "name": "HTTP Insurers"
+    },
+    {
+      "parameters": {
+        "url": "https://newsapi.org/v2/everything",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "life insurance India"
+            },
+            {
+              "name": "sortBy",
+              "value": "publishedAt"
+            },
+            {
+              "name": "language",
+              "value": "en"
+            },
+            {
+              "name": "pageSize",
+              "value": "10"
+            },
+            {
+              "name": "apiKey",
+              "value": "2ab0a02f056a44fabf733648386aaa17"
+            },
+            {
+              "name": "domains",
+              "value": "news18.com,timesofindia.com,ndtv.com,hindustantimes.com"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        16,
+        592
+      ],
+      "id": "1f2746a4-95a2-4d96-8063-bfb33f90e4e0",
+      "name": "HTTP Insurers1"
+    },
+    {
+      "parameters": {
+        "url": "https://news.google.com/rss/search?q=life+insurance+India+IRDAI+LIC&hl=en-IN&gl=IN&ceid=IN:en",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        16,
+        -112
+      ],
+      "id": "a4bf7a00-5123-4e32-8edf-6a360d31f569",
+      "name": "RSS Google"
+    },
+    {
+      "parameters": {
+        "url": "https://newsapi.org/v2/everything",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "life insurance industry India - \"life insurance\" India IRDAI LIC \"insurance sector\" India"
+            },
+            {
+              "name": "sortBy",
+              "value": "publishedAt"
+            },
+            {
+              "name": "language",
+              "value": "en"
+            },
+            {
+              "name": "pageSize",
+              "value": "15"
+            },
+            {
+              "name": "apiKey",
+              "value": "2ab0a02f056a44fabf733648386aaa17"
+            },
+            {
+              "name": "domains",
+              "value": "economictimes.indiatimes.com,livemint.com,business-standard.com,financialexpress.com,moneycontrol.com,thehindu.com,ndtv.com,timesofindia.com,https://bfsi.economictimes.indiatimes.com/tag/life+insurance,https://www.lifeinscouncil.org/code/HomePage,"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        16,
+        288
+      ],
+      "id": "89831e9d-07d1-46be-9188-d2362503b97f",
+      "name": "HTTP LI Industry"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "65037248-ef02-4948-9d86-1d542bc60861",
+              "name": "title",
+              "value": "={{ $('Code in JavaScript').item.json.title }}",
+              "type": "string"
+            },
+            {
+              "id": "b77fc8ba-2f1b-4538-a70b-0c644ccaa174",
+              "name": "url",
+              "value": "={{ $('Code in JavaScript').item.json.url }}",
+              "type": "string"
+            },
+            {
+              "id": "b2ee3e55-619c-468a-98b0-914622be580c",
+              "name": "source",
+              "value": "={{ $('Code in JavaScript').item.json.source }}",
+              "type": "string"
+            },
+            {
+              "id": "3d9fa073-5752-4a93-93d2-9d1c29619477",
+              "name": "publishedAt",
+              "value": "={{ $('Code in JavaScript').item.json.publishedAt }}",
+              "type": "string"
+            },
+            {
+              "id": "0a272e96-d066-40c8-8d57-ddc3b07b1705",
+              "name": "text",
+              "value": "={{ $json.text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        992,
+        160
+      ],
+      "id": "f132961c-202e-441f-8d1a-937924b85fe0",
+      "name": "Edit Fields",
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "numberInputs": 6
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        320,
+        160
+      ],
+      "id": "2ac37670-4750-487a-9def-94ae35c1bff9",
+      "name": "Merge1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "HTTP LI Industry",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS Google",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS - Economic Times",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS Mint Insurance",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "HTTP Insurers",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "HTTP Insurers1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS - Economic Times": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "RSS Mint Insurance": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "HTTP Insurers": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 4
+          }
+        ]
+      ]
+    },
+    "HTTP Insurers1": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 5
+          }
+        ]
+      ]
+    },
+    "RSS Google": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP LI Industry": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "2ccd0bf3-6491-4e8f-b692-46a8e22e0397",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "57c8a0446f2db40b62ec8d804cd44e560c40edb1a080edc0f448b4d6a396434f"
+  },
+  "id": "KshbXbggSd7clWbg",
+  "tags": []
+}
