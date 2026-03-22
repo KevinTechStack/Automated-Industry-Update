@@ -59,15 +59,13 @@ Automated-Industry-Update/
 ├── 📄 LICENSE                      ← MIT License
 ├── 🔧 workflow.json                ← Complete n8n workflow (importable)
 │
-├── 📁 assets/
-│   ├── workflow-overview.png       ← Full canvas screenshot
-│   ├── workflow-detail.png         ← Zoomed node detail
-│   ├── email-output.png            ← Sample email output
-│   ├── document-output.png         ← Sample Word document output
-│   └── node-config.png             ← AI input/output detail
-│
-└── 📁 docs/
-    └── build-guide.docx            ← Complete step-by-step build guide
+└──  📁 assets/
+    ├── workflow-overview.png
+    ├── workflow-detail.png
+    ├── email-output.png
+    ├── document-output.png
+    └── node-config.png
+
 ```
 
 ---
