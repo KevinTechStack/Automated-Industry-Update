@@ -262,13 +262,12 @@ To adapt this for a different industry, update these two things:
 
 ## 🔮 Next Steps
 
-- [ ] Add MoneyControl and Business Standard RSS feeds for broader coverage
+- [ ] Add additional RSS feeds for broader coverage
 - [ ] Build a weekly trend summary from daily digests
 - [ ] Add Telegram channel delivery option
 - [ ] Flag articles mentioning specific regulatory changes automatically
 - [ ] Build a Power BI dashboard tracking article volume and topics over time
 - [ ] Add sentiment scoring to flag market-positive vs market-negative news
-- [ ] Auto-tag articles by category: Regulatory, Product Launch, Claims, Financials
 
 ---
 
@@ -288,12 +287,6 @@ work. I rebuilt this section five times before getting it right.
 The most valuable automations remove friction from tasks you already do every day. 
 This has a 100% daily usage use case because it solves a real, daily pain point — 
 not a hypothetical one. I go through this regularly, and there are times when I miss out. So, this solves that problem.
-
----
-
-## 🤝 Contributing
-
-Contributions welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ---
 
